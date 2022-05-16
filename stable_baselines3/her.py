@@ -1,10 +1,12 @@
 import gym
 import numpy as np
 
-from stable_baselines3 import DDPG
-from stable_baselines3.common.noise import NormalActionNoise
+from stable_baselines3 import HerReplayBuffer, DDPG
+from stable_baselines3.common.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise
 
-env = gym.make('FetchReach-v1', reward_type='dense')
+env_name = 'FetchPickAndPlace-v1'
+
+env = gym.make(env_name)
 
 # The noise objects for DDPG
 n_actions = env.action_space.shape[-1]
@@ -15,20 +17,24 @@ model = DDPG(
     "MultiInputPolicy", 
     env, 
     action_noise=action_noise,
+    replay_buffer_class=HerReplayBuffer, 
     verbose=1,
+    tensorboard_log='./logs/her_'+env_name+'/'
 )
 
 # Train the model
-model.learn(10000)
+model.learn(1.5e6)
 
-model.save("./ddpg")
+model.save('./models/her_'+env_name)
 
+"""
 # Because it needs access to `env.compute_reward()`
 # HER must be loaded with the env
-model = DDPG.load('./ddpg', env=env)
+model = DDPG.load('./models/her_'+env_name, env=env)
+"""
 
 obs = env.reset()
-for _ in range(1000):
+for _ in range(5000):
     action, _ = model.predict(obs, deterministic=True)
     obs, reward, done, _ = env.step(action)
     env.render()
