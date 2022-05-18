@@ -4,7 +4,7 @@ import numpy as np
 from stable_baselines3 import HerReplayBuffer, DDPG
 from stable_baselines3.common.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise
 
-env_name = 'FetchPickAndPlace-v1'
+env_name = 'FetchPush-v1'
 
 env = gym.make(env_name)
 
@@ -23,7 +23,7 @@ model = DDPG(
 )
 
 # Train the model
-model.learn(1.5e6)
+model.learn(750000)
 
 model.save('./models/her_'+env_name)
 

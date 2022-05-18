@@ -1,7 +1,7 @@
 import pandas
 import matplotlib.pyplot as plt
 
-experiment_name = 'her_FetchPickAndPlace-v1'
+experiment_name = 'her_FetchPush-v1'
 
 # Read data
 df = pandas.read_csv('data/' + experiment_name + '_ep_rew_mean.csv')
