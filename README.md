@@ -7,9 +7,9 @@ El objetivo de este repositorio es presentar distintas aproximaciones para soluc
 ![envs](https://raw.githubusercontent.com/Alepuzzz/rl-fetch-envs/master/images/envs.png)
 
 
-# INSTALACIÓN
+## INSTALACIÓN
 
-## Implementación propia y librería Stable Baselines3
+### Implementación propia y librería Stable Baselines3
 
 Para el correcto funcionamiento de mi implementación (carpetas _ddpg_ y _ddpg\_her_) y de los códigos que hacen uso de Stable Baselines3 (carpeta _stable\_baselines3_) es necesario instalar las siguientes librerías:
 
@@ -19,7 +19,7 @@ Para el correcto funcionamiento de mi implementación (carpetas _ddpg_ y _ddpg\_
 
 Se recomienda emplear un entorno virtual para evitar conflictos de versiones entre paquetes. En mi caso se ha utilizado Python 3.8.12.
 
-## Librería Baselines
+### Librería Baselines
 
 Para poder entrenar y probar los agentes entrados usando la librería Baselines (carpeta _baselines_) es necesario instalar las siguientes librerías:
 
@@ -30,7 +30,7 @@ Para poder entrenar y probar los agentes entrados usando la librería Baselines 
 Se recomienda emplear otro entorno virtual independiente para evitar conflitos entre versiones de paquetes. En mi caso se ha utilizado Python 3.6.13.
 
 
-# ESTRUCTURA
+## ESTRUCTURA
 
 
 
