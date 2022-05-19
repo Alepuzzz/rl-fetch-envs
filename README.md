@@ -4,7 +4,11 @@ This repository collects the code developed, the training results and the traine
 
 The objective of this repository is to present different approaches to solve the robotic environments of the Fetch manipulator arm from the Gym library.
 
-![envs](https://raw.githubusercontent.com/Alepuzzz/rl-fetch-envs/master/images/envs.png)
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Alepuzzz/rl-fetch-envs/master/images/envs.png" width="250"/>
+</p>
+
+![envs](https://raw.githubusercontent.com/Alepuzzz/rl-fetch-envs/master/images/envs.png=x250)
 
 
 ## INSTALLATION
