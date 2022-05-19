@@ -4,7 +4,8 @@ import numpy as np
 from stable_baselines3 import HerReplayBuffer, DDPG
 from stable_baselines3.common.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise
 
-env_name = 'FetchPush-v1'
+env_name = 'FetchPickAndPlace-v1'
+print("Training agent in ", env_name)
 
 env = gym.make(env_name)
 
