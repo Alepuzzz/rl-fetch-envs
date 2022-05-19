@@ -10,7 +10,7 @@ from replay_buffer import ReplayBuffer
 import models
 
 
-def ddpg(env, actor_critic=models.MLPActorCritic, ac_kwargs=dict(), seed=0, 
+def ddpg(env, path='trained_agent.pt', actor_critic=models.MLPActorCritic, ac_kwargs=dict(), seed=0, 
          steps_per_epoch=4000, epochs=100, replay_size=int(1e6), gamma=0.99, 
          polyak=0.995, pi_lr=1e-3, q_lr=1e-3, batch_size=100, start_steps=10000, 
          update_after=1000, update_every=50, act_noise=0.1, num_test_episodes=10, 
@@ -21,6 +21,8 @@ def ddpg(env, actor_critic=models.MLPActorCritic, ac_kwargs=dict(), seed=0,
 
     Args:
         env : An environment that must satisfy the OpenAI Gym API.
+
+        path: Path for saving the trained agent.
 
         actor_critic: The constructor method for a PyTorch Module with an ``act`` 
             method, a ``pi`` module, and a ``q`` module. The ``act`` method and
@@ -37,8 +39,7 @@ def ddpg(env, actor_critic=models.MLPActorCritic, ac_kwargs=dict(), seed=0,
                                            | given observations.
             ``q``        (batch,)          | Tensor containing the current estimate
                                            | of Q* for the provided observations
-                                           | and actions. (Critical: make sure to
-                                           | flatten this!)
+                                           | and actions. 
             ===========  ================  ======================================
 
         ac_kwargs (dict): Any kwargs appropriate for the ActorCritic object 
@@ -56,14 +57,7 @@ def ddpg(env, actor_critic=models.MLPActorCritic, ac_kwargs=dict(), seed=0,
         gamma (float): Discount factor. (Always between 0 and 1.)
 
         polyak (float): Interpolation factor in polyak averaging for target 
-            networks. Target networks are updated towards main networks 
-            according to:
-
-            .. math:: \\theta_{\\text{targ}} \\leftarrow 
-                \\rho \\theta_{\\text{targ}} + (1-\\rho) \\theta
-
-            where :math:`\\rho` is polyak. (Always between 0 and 1, usually 
-            close to 1.)
+            networks. (Always between 0 and 1, usually close to 1.)
 
         pi_lr (float): Learning rate for policy.
 
@@ -101,7 +95,6 @@ def ddpg(env, actor_critic=models.MLPActorCritic, ac_kwargs=dict(), seed=0,
         'TestEpRet' : [],
         'EpLen': [],
         'TestEpLen' : [],
-        'QVals' : [],
         'LossPi' : [],
         'LossQ' : []
     }
@@ -113,7 +106,7 @@ def ddpg(env, actor_critic=models.MLPActorCritic, ac_kwargs=dict(), seed=0,
     obs_dim = env.observation_space.shape
     act_dim = env.action_space.shape[0]
 
-    # Action limit for clamping: critically, assumes all dimensions share the same bound!
+    # Action limit for clamping
     # act_limit = env.action_space.high[0]
     act_limit = 5
 
@@ -128,7 +121,7 @@ def ddpg(env, actor_critic=models.MLPActorCritic, ac_kwargs=dict(), seed=0,
     # Experience buffer
     replay_buffer = ReplayBuffer(obs_dim=obs_dim, act_dim=act_dim, size=replay_size)
 
-    # Count variables (protip: try to get a feel for how different size networks behave!)
+    # Count variables
     var_counts = tuple(models.count_vars(module) for module in [ac.pi, ac.q])
     print('\nNumber of parameters: \t pi: %d, \t q: %d\n'%var_counts)
 
@@ -146,10 +139,7 @@ def ddpg(env, actor_critic=models.MLPActorCritic, ac_kwargs=dict(), seed=0,
         # MSE loss against Bellman backup
         loss_q = ((q - backup)**2).mean()
 
-        # Useful info for logging
-        loss_info = dict(QVals=q.detach().numpy())
-
-        return loss_q, loss_info
+        return loss_q
 
     # Set up function for computing DDPG pi loss
     def compute_loss_pi(data):
@@ -165,7 +155,7 @@ def ddpg(env, actor_critic=models.MLPActorCritic, ac_kwargs=dict(), seed=0,
     def update(data):
         # First run one gradient descent step for Q.
         q_optimizer.zero_grad()
-        loss_q, loss_info = compute_loss_q(data)
+        loss_q = compute_loss_q(data)
         loss_q.backward()
         q_optimizer.step()
 
@@ -187,14 +177,11 @@ def ddpg(env, actor_critic=models.MLPActorCritic, ac_kwargs=dict(), seed=0,
         # Record things
         logger['LossQ'].append(loss_q.item())
         logger['LossPi'].append(loss_pi.item())
-        logger['QVals'].append(loss_info['QVals'])
 
 
         # Finally, update target networks by polyak averaging.
         with torch.no_grad():
             for p, p_targ in zip(ac.parameters(), ac_targ.parameters()):
-                # NB: We use an in-place operations "mul_", "add_" to update target
-                # params, as opposed to "mul" and "add", which would make new tensors.
                 p_targ.data.mul_(polyak)
                 p_targ.data.add_((1 - polyak) * p.data)
 
@@ -206,13 +193,16 @@ def ddpg(env, actor_critic=models.MLPActorCritic, ac_kwargs=dict(), seed=0,
     def test_agent():
         for j in range(num_test_episodes):
             o, d, ep_ret, ep_len = test_env.reset(), False, 0, 0
+            success = 0.0
             while not(d or (ep_len == max_ep_len)):
                 # Take deterministic actions at test time (noise_scale=0)
-                o, r, d, _ = test_env.step(get_action(o, 0))
+                o, r, d, info = test_env.step(get_action(o, 0))
+                success = success if info['is_success']<1.0 else 1.0
                 ep_ret += r
                 ep_len += 1
             logger['TestEpRet'].append(ep_ret)
             logger['TestEpLen'].append(ep_len)
+            logger['TestSuccess'].append(success)
 
     # Prepare for interaction with environment
     total_steps = steps_per_epoch * epochs
@@ -243,8 +233,7 @@ def ddpg(env, actor_critic=models.MLPActorCritic, ac_kwargs=dict(), seed=0,
         # Store experience to replay buffer
         replay_buffer.store(o, a, r, o2, d)
 
-        # Super critical, easy to overlook step: make sure to update 
-        # most recent observation!
+        # Update most recent observation
         o = o2
 
         # End of trajectory handling
@@ -265,7 +254,7 @@ def ddpg(env, actor_critic=models.MLPActorCritic, ac_kwargs=dict(), seed=0,
 
             # Save model
             if (epoch % save_freq == 0) or (epoch == epochs):
-                torch.save(ac, 'models.pt')
+                torch.save(ac, path)
 
             # Test the performance of the deterministic version of the agent.
             test_agent()
@@ -276,7 +265,6 @@ def ddpg(env, actor_critic=models.MLPActorCritic, ac_kwargs=dict(), seed=0,
                          ['AverageEpLen', mean(logger['EpLen'])],
                          ['TestEpLen', mean(logger['TestEpLen'])],
                          ['TotalEnvInteracts', t],
-                         #['AverageQVals', mean(logger['QVals'])],
                          ['LossPi', mean(logger['LossPi'])],
                          ['LossQ', mean(logger['LossQ'])],
                          ['Time', time.time()-start_time]]
