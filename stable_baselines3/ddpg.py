@@ -25,7 +25,7 @@ model.learn(100000)
 
 model.save("./ddpg")
 
-model = DDPG.load('./ddpg')
+#model = DDPG.load('./ddpg')
 
 obs = env.reset()
 for _ in range(1000):
