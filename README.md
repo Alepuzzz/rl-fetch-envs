@@ -30,7 +30,3 @@ Para poder entrenar y probar los agentes entrados usando la librería Baselines 
 Se recomienda emplear otro entorno virtual independiente para evitar conflitos entre versiones de paquetes. En mi caso se ha utilizado Python 3.6.13.
 
 
-## ESTRUCTURA
-
-
-
