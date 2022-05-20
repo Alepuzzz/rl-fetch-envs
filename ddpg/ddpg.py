@@ -286,7 +286,4 @@ def ddpg(env, model_path='trained_agent.pt', logs_path='logs.csv', actor_critic=
                 logger[key] = []
 
     df =  pd.DataFrame(csv_logger)
-
-    print(df)
-
     df.to_csv(logs_path)

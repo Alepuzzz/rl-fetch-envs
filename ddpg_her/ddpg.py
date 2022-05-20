@@ -5,20 +5,25 @@ from torch.optim import Adam
 import time
 from tabulate import tabulate
 from statistics import mean
+import pandas as pd
 
 import models
 
 
 class ddpg:
 
-    def __init__(self, env, actor_critic=models.MLPActorCritic, ac_kwargs=dict(), seed=0, 
-            gamma=0.98, polyak=0.95, pi_lr=1e-3, q_lr=1e-3, max_ep_len=50):
+    def __init__(self, env, model_path='trained_agent.pt', logs_path='logs.csv', actor_critic=models.MLPActorCritic, 
+            ac_kwargs=dict(), seed=0, gamma=0.98, polyak=0.95, pi_lr=1e-3, q_lr=1e-3, max_ep_len=50):
         """
         Deep Deterministic Policy Gradient (DDPG)
 
 
         Args:
             env : An environment that must satisfy the OpenAI Gym API.
+
+            model_path: Path for saving the trained agent.
+
+            logs_path: Path for saving the csv containing the training logs.
 
             actor_critic: The constructor method for a PyTorch Module with an ``act`` 
                 method, a ``pi`` module, and a ``q`` module. The ``act`` method and
@@ -47,20 +52,14 @@ class ddpg:
             gamma (float): Discount factor. (Always between 0 and 1.)
 
             polyak (float): Interpolation factor in polyak averaging for target 
-                networks. Target networks are updated towards main networks 
-                according to:
-
-                .. math:: \\theta_{\\text{targ}} \\leftarrow 
-                    \\rho \\theta_{\\text{targ}} + (1-\\rho) \\theta
-
-                where :math:`\\rho` is polyak. (Always between 0 and 1, usually 
-                close to 1.)
+                networks. (Always between 0 and 1, usually close to 1.)
 
             pi_lr (float): Learning rate for policy.
 
             q_lr (float): Learning rate for Q-networks.
         """
-        
+        self.model_path = model_path
+        self.logs_path = logs_path
         self.start_time = time.time()
         self.gamma = gamma
         self.polyak = polyak
@@ -71,11 +70,15 @@ class ddpg:
             'TestEpRet' : [],
             'EpLen': [],
             'TestEpLen' : [],
-            'SuccessRate': [],
             'TestSuccessRate': [],
-            'QVals' : [],
             'LossPi' : [],
             'LossQ' : []
+        }
+
+        self.csv_logger = {
+            'Epoch' : [],
+            'TestEpRew' : [],
+            'TestSuccessRate': []
         }
 
         torch.manual_seed(seed)
@@ -84,7 +87,7 @@ class ddpg:
         self.test_env = deepcopy(env)
 
         self.act_dim = env.action_space.shape[0]
-        # Action limit for clamping: critically, assumes all dimensions share the same bound!
+        # Action limit for clamping
         #self.act_limit = env.action_space.high[0]
         self.act_limit = 5
 
@@ -100,7 +103,7 @@ class ddpg:
         for p in self.ac_targ.parameters():
             p.requires_grad = False
 
-        # Count variables (protip: try to get a feel for how different size networks behave!)
+        # Count variables 
         var_counts = tuple(models.count_vars(module) for module in [self.ac.pi, self.ac.q])
         print('\nNumber of parameters: \t pi: %d, \t q: %d\n'%var_counts)
 
@@ -119,10 +122,7 @@ class ddpg:
         # MSE loss against Bellman backup
         loss_q = ((q - backup)**2).mean()
 
-        # Useful info for logging
-        loss_info = dict(QVals=q.detach().numpy())
-
-        return loss_q, loss_info
+        return loss_q
 
 
     # Set up function for computing DDPG pi loss
@@ -135,7 +135,7 @@ class ddpg:
     def update(self, data):
         # First run one gradient descent step for Q.
         self.q_optimizer.zero_grad()
-        loss_q, loss_info = self.compute_loss_q(data)
+        loss_q = self.compute_loss_q(data)
         loss_q.backward()
         self.q_optimizer.step()
 
@@ -157,13 +157,10 @@ class ddpg:
         # Record things
         self.logger['LossQ'].append(loss_q.item())
         self.logger['LossPi'].append(loss_pi.item())
-        self.logger['QVals'].append(loss_info['QVals'])
 
         # Finally, update target networks by polyak averaging.
         with torch.no_grad():
             for p, p_targ in zip(self.ac.parameters(), self.ac_targ.parameters()):
-                # NB: We use an in-place operations "mul_", "add_" to update target
-                # params, as opposed to "mul" and "add", which would make new tensors.
                 p_targ.data.mul_(self.polyak)
                 p_targ.data.add_((1 - self.polyak) * p.data)
 
@@ -180,18 +177,13 @@ class ddpg:
             o, d, ep_ret, ep_len = self.test_env.reset(), False, 0, 0
             while not(d or (ep_len == self.max_ep_len)):
                 # Take deterministic actions at test time (noise_scale=0)
-                o, r, d, _ = self.test_env.step(self.get_action(o, 0))
+                o, r, d, info = self.test_env.step(self.get_action(o, 0))
                 ep_ret += r
                 ep_len += 1
 
-                # Ignore the "done" signal if it comes from hitting the time
-                # horizon (that is, when it's an artificial terminal signal
-                # that isn't based on the agent's state)
-                d = False if ep_len==self.max_ep_len else d
-
             self.logger['TestEpRet'].append(ep_ret)
             self.logger['TestEpLen'].append(ep_len)
-            self.logger['TestSuccessRate'].append(int(d))
+            self.logger['TestSuccessRate'].append(info['is_success'])
     
 
     def print_epoch_data(self, epoch, t, episode_count):
@@ -202,18 +194,24 @@ class ddpg:
                     ['AverageTestEpRet', mean(self.logger['TestEpRet'])],
                     ['AverageEpLen', mean(self.logger['EpLen'])],
                     ['TestEpLen', mean(self.logger['TestEpLen'])],
-                    #['SuccessRate', mean(self.logger['SuccessRate'])],
-                    #['TestSucessRate', mean(self.logger['TestSuccessRate'])],
+                    ['TestSucessRate', mean(self.logger['TestSuccessRate'])],
                     ['TotalEnvInteracts', t],
-                    #['AverageQVals', mean(logger['QVals'])],
                     ['LossPi', mean(self.logger['LossPi'])],
                     ['LossQ', mean(self.logger['LossQ'])],
                     ['Time', time.time()-self.start_time]]
         print(tabulate(epochData))
 
+        self.csv_logger['Epoch'].append(epoch)
+        self.csv_logger['TestEpRew'].append(mean(self.logger['TestEpRet']))
+        self.csv_logger['TestSuccessRate'].append(mean(self.logger['TestSuccessRate']))
+
         for key in self.logger:
             self.logger[key] = []
     
 
-    def save_model(self, file_name):
-        torch.save(self.ac, file_name)
+    def save_model(self):
+        torch.save(self.ac, self.model_path)
+
+    def save_logs(self):
+        df =  pd.DataFrame(self.csv_logger)
+        df.to_csv(self.logs_path)

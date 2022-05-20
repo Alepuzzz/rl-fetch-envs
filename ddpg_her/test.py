@@ -4,10 +4,10 @@ from tabulate import tabulate
 from statistics import mean
 
 
-def load_pytorch_policy():
+def load_pytorch_policy(model_path):
     """ Load a pytorch policy from saved file."""
 
-    model = torch.load('models.pt')
+    model = torch.load(model_path)
 
     # make function for producing an action given a single state
     def get_action(o):

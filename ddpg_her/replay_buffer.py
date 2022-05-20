@@ -61,7 +61,7 @@ class HerReplayBuffer:
         # Iterate over the episode excluding the last transition
         for idx, t in enumerate(idxs[:-1]): 
             
-            goals_idxs = np.random.choice(idxs[idx+1:],k)
+            goals_idxs = np.random.choice(idxs[idx+1:],k) # Future sampling strategy
 
             for g_idx in goals_idxs:
                 o = dict(observation=self.obs_buf[t])
@@ -73,19 +73,6 @@ class HerReplayBuffer:
                 r = env.compute_reward(o2['achieved_goal'], o2['desired_goal'], info)
                 d = False # TODO: ALWAYS?
                 self.store(o, a, r, o2, d, info)
-
-        """
-        for idx, t in enumerate(idxs): 
-            o = dict(observation=self.obs_buf[t],
-                     achieved_goal=self.a_goal_buf[t],
-                     desired_goal=self.a_goal_buf[episode_end]) # Substitute desired goal)
-            o2 = dict(observation=self.obs2_buf[t])
-            a = self.act_buf[t]
-            info = self.transition_info[idx]
-            r = env.compute_reward(o['achieved_goal'], o['desired_goal'], info)
-            d = self.done_buf[t] if (idx!=idxs[-1]) else True
-            self.store(o, a, r, o2, d, info)
-        """
 
         self.transition_info = []
         self.episode_start = self.ptr

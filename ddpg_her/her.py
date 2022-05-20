@@ -66,15 +66,13 @@ def her(env, policy, steps_per_epoch=4000, epochs=200, replay_size=int(1e6), bat
         # Store experience to replay buffer
         replay_buffer.store(o, a, r, o2, d, info)
 
-        # Super critical, easy to overlook step: make sure to update 
-        # most recent observation!
+        # Update most recent observation
         o = o2
 
         # End of trajectory handling
         if d or (ep_len == max_ep_len):
             policy.logger['EpRet'].append(ep_ret)
             policy.logger['EpLen'].append(ep_len)
-            policy.logger['SuccessRate'].append(int(d))
             o, ep_ret, ep_len, episode_count = env.reset(), 0, 0, episode_count+1
             replay_buffer.sample_additional_goals(env)
 
@@ -90,9 +88,11 @@ def her(env, policy, steps_per_epoch=4000, epochs=200, replay_size=int(1e6), bat
 
             # Save model
             if (epoch % save_freq == 0) or (epoch == epochs):
-                policy.save_model('models.pt')
+                policy.save_model()
 
             # Test the performance of the deterministic version of the agent.
             policy.test_agent(num_test_episodes)
 
             policy.print_epoch_data(epoch, t, episode_count)
+
+    policy.save_logs()

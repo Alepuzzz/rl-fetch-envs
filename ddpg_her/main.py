@@ -15,14 +15,16 @@ if __name__ == '__main__':
     parser.add_argument('--gamma', type=float, default=0.98)
     parser.add_argument('--seed', '-s', type=int, default=0)
     parser.add_argument('--epochs', type=int, default=50)
+    parser.add_argument('--model_path', type=str, default='trained_agent.pt')
+    parser.add_argument('--logs_path', type=str, default='logs.csv')
     args = parser.parse_args()
 
     env = env = gym.make(args.env, reward_type='sparse')
 
     if (args.mode == 'train'):
-        policy = ddpg(env, ac_kwargs=dict(hidden_sizes=[args.hid]*args.l), gamma=args.gamma, seed=args.seed)
+        policy = ddpg(env, model_path=args.model_path, logs_path=args.logs_path, ac_kwargs=dict(hidden_sizes=[args.hid]*args.l), gamma=args.gamma, seed=args.seed)
         her(env, policy, epochs=args.epochs)
 
     elif (args.mode == 'test'):
-        get_action = test.load_pytorch_policy()
+        get_action = test.load_pytorch_policy(model_path=args.model_path)
         test.run_policy(env, get_action)
