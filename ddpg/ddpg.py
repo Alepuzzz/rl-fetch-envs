@@ -5,16 +5,16 @@ from torch.optim import Adam
 import time
 from tabulate import tabulate
 from statistics import mean
+import pandas as pd
 
 from replay_buffer import ReplayBuffer
 import models
 
 
-def ddpg(env, path='trained_agent.pt', actor_critic=models.MLPActorCritic, ac_kwargs=dict(), seed=0, 
-         steps_per_epoch=4000, epochs=100, replay_size=int(1e6), gamma=0.99, 
-         polyak=0.995, pi_lr=1e-3, q_lr=1e-3, batch_size=100, start_steps=10000, 
-         update_after=1000, update_every=50, act_noise=0.1, num_test_episodes=10, 
-         max_ep_len=1000, save_freq=1):
+def ddpg(env, model_path='trained_agent.pt', logs_path='logs.csv', actor_critic=models.MLPActorCritic, 
+         ac_kwargs=dict(), seed=0, steps_per_epoch=4000, epochs=100, replay_size=int(1e6), gamma=0.99, 
+         polyak=0.995, pi_lr=1e-3, q_lr=1e-3, batch_size=100, start_steps=10000, update_after=1000,
+         update_every=50, act_noise=0.1, num_test_episodes=10, max_ep_len=1000, save_freq=1):
     """
     Deep Deterministic Policy Gradient (DDPG)
 
@@ -22,7 +22,9 @@ def ddpg(env, path='trained_agent.pt', actor_critic=models.MLPActorCritic, ac_kw
     Args:
         env : An environment that must satisfy the OpenAI Gym API.
 
-        path: Path for saving the trained agent.
+        model_path: Path for saving the trained agent.
+
+        logs_path: Path for saving the csv containing the training logs.
 
         actor_critic: The constructor method for a PyTorch Module with an ``act`` 
             method, a ``pi`` module, and a ``q`` module. The ``act`` method and
@@ -96,7 +98,14 @@ def ddpg(env, path='trained_agent.pt', actor_critic=models.MLPActorCritic, ac_kw
         'EpLen': [],
         'TestEpLen' : [],
         'LossPi' : [],
-        'LossQ' : []
+        'LossQ' : [],
+        'TestSuccess': []
+    }
+
+    csv_logger = {
+        'Epoch' : [],
+        'TestEpRew' : [],
+        'TestSuccess': []
     }
 
     torch.manual_seed(seed)
@@ -193,16 +202,14 @@ def ddpg(env, path='trained_agent.pt', actor_critic=models.MLPActorCritic, ac_kw
     def test_agent():
         for j in range(num_test_episodes):
             o, d, ep_ret, ep_len = test_env.reset(), False, 0, 0
-            success = 0.0
             while not(d or (ep_len == max_ep_len)):
                 # Take deterministic actions at test time (noise_scale=0)
                 o, r, d, info = test_env.step(get_action(o, 0))
-                success = success if info['is_success']<1.0 else 1.0
                 ep_ret += r
                 ep_len += 1
             logger['TestEpRet'].append(ep_ret)
             logger['TestEpLen'].append(ep_len)
-            logger['TestSuccess'].append(success)
+            logger['TestSuccess'].append(info['is_success'])
 
     # Prepare for interaction with environment
     total_steps = steps_per_epoch * epochs
@@ -254,7 +261,7 @@ def ddpg(env, path='trained_agent.pt', actor_critic=models.MLPActorCritic, ac_kw
 
             # Save model
             if (epoch % save_freq == 0) or (epoch == epochs):
-                torch.save(ac, path)
+                torch.save(ac, model_path)
 
             # Test the performance of the deterministic version of the agent.
             test_agent()
@@ -267,8 +274,19 @@ def ddpg(env, path='trained_agent.pt', actor_critic=models.MLPActorCritic, ac_kw
                          ['TotalEnvInteracts', t],
                          ['LossPi', mean(logger['LossPi'])],
                          ['LossQ', mean(logger['LossQ'])],
+                         ['TestSuccess', mean(logger['TestSuccess'])],
                          ['Time', time.time()-start_time]]
             print(tabulate(epochData))
 
+            csv_logger['Epoch'].append(epoch)
+            csv_logger['TestEpRew'].append(mean(logger['TestEpRet']))
+            csv_logger['TestSuccess'].append(mean(logger['TestSuccess']))
+
             for key in logger:
                 logger[key] = []
+
+    df =  pd.DataFrame(csv_logger)
+
+    print(df)
+
+    df.to_csv(logs_path)
