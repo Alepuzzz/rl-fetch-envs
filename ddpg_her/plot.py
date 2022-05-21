@@ -2,7 +2,7 @@ import pandas
 import numpy as np
 import matplotlib.pyplot as plt
 
-experiment_name = 'push'
+experiment_name = 'slide'
 
 # Read data
 df = pandas.read_csv('data/' + experiment_name + '_logs.csv')
