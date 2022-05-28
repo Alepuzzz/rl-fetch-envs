@@ -28,7 +28,7 @@ It is recommended to use a virtual environment to avoid version conflicts betwee
 
 In order to train and test the agents that use the Baselines library (_baselines_ folder) it is necessary to install the following libraries:
 
-- OpenAI Gym library (tested in version 0.19.0). 
+- OpenAI Gym library (tested in version 0.15.7). 
 ```
 pip install gym==0.15.7
 ```
